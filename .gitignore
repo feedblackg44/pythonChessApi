@@ -1,4 +1,7 @@
-﻿### Python template
+﻿# Proj
+web_settings.json
+
+### Python template
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
