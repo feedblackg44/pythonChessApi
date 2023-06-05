@@ -1,6 +1,9 @@
 from flask import Flask, request
 from flask_cors import CORS
 from models import Board
+from json import load, dumps
+from os.path import isfile
+from os import getcwd
 
 app = Flask(__name__)
 CORS(app)
@@ -66,7 +69,26 @@ def time_end():
     return [board.check_end(color)]
 
 
+def main(application):
+    # Default Data
+    default_settings = {
+        "host": "localhost",
+        "port": 5000
+    }
+    filename = "web_settings.json"
+    json_object = dumps(default_settings, indent=4)
+    if not isfile(filename):
+        with open(filename, "w") as file:
+            file.write(json_object)
+
+    print(getcwd())
+
+    # Load settings and run app
+    with open(filename, "r") as file:
+        settings = load(file)
+        application.run(**settings,
+                        debug=True)
+
+
 if __name__ == '__main__':
-    app.run(host='192.168.1.27',
-            port=49048,
-            debug=True)
+    main(app)
