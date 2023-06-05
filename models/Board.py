@@ -157,6 +157,10 @@ class Board:
                 self.won = color
                 self.active_color = None
                 return False
+            else:
+                self.state = GameStates.TIE
+                self.active_color = None
+                return False
         if only_kings:
             self.state = GameStates.TIE
             self.active_color = None
