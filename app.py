@@ -1,28 +1,48 @@
-from flask import Flask, request
+from flask import Flask, request, jsonify
 from flask_cors import CORS
+from flask_socketio import SocketIO, emit
 from models import Board
 from json import load, dumps
 from os.path import isfile
-from os import getcwd
 
 app = Flask(__name__)
-CORS(app)
+CORS(app, resources={r"/*": {"origins": "*"}})
+socketio = SocketIO(app, cors_allowed_origins="*")
 
 board = Board()
+
+
+@socketio.on('connect')
+def handle_connect():
+    print('Client connected')
+
+
+@socketio.on('disconnect')
+def handle_disconnect():
+    print('Client disconnected')
+
+
+@socketio.on('board_update')
+def handle_update_board():
+    update_board_data()
+
+
+def update_board_data():
+    board.reset_promotion()
+    board_data = board.to_json()
+    emit('board_update', board_data, broadcast=True)
+
+
+@app.route('/get_board', methods=['GET'])
+def get_board():
+    socketio.emit('update_board')
+    return board.to_json()
 
 
 @app.route('/reset/<int:x>', methods=['GET'])
 def reset_board(x):
     board.reset(int(x))
     return get_board()
-
-
-@app.route('/get_board', methods=['GET'])
-def get_board():
-
-    board.reset_promotion()
-
-    return board.to_json()
 
 
 @app.route('/highlight_cells/<int:disable>', methods=['POST'])
@@ -81,13 +101,13 @@ def main(application):
         with open(filename, "w") as file:
             file.write(json_object)
 
-    print(getcwd())
-
     # Load settings and run app
     with open(filename, "r") as file:
         settings = load(file)
-        application.run(**settings,
-                        debug=True)
+        socketio.run(app,
+                     **settings,
+                     debug=True,
+                     allow_unsafe_werkzeug=True)
 
 
 if __name__ == '__main__':
