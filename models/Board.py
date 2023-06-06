@@ -51,7 +51,7 @@ class Board:
                 self.players_id[Colors.BLACK] = {'id': None, 'sid': None}
                 self.sids[Colors.BLACK.value] = None
             else:
-                self.sids['Other'].pop(self.sids['Other'].index(sid))
+                self.sids['Other'].remove(sid)
 
     def get_cell(self, x, y) -> Cell:
         return self.cells[y][x]
@@ -315,12 +315,12 @@ class Board:
 
     # ---- Printing ---- #
 
-    def to_json(self, sid=None) -> dict:
+    def to_json(self, sid=None, uuid=None) -> dict:
         self.update_time()
 
         color = Colors.BLACK \
-            if self.players_id[Colors.BLACK]['sid'] == sid or \
-            self.players_id[Colors.BLACK]['id'] == sid \
+            if (sid and self.players_id[Colors.BLACK]['sid'] == sid) or \
+               (uuid and self.players_id[Colors.BLACK]['id'] == uuid) \
             else Colors.WHITE
 
         if color == Colors.BLACK:

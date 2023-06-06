@@ -28,16 +28,20 @@ def handle_disconnect():
 def handle_update_board():
     board.reset_promotion()
     black_sid = board.sids['black']
-    board_data_black = board.to_json(black_sid)
-    emit('board_update', board_data_black, room=black_sid)
-    for sid in board.sids['Other']:
+    if black_sid:
+        board_data_black = board.to_json(black_sid)
+        emit('board_update', board_data_black, room=black_sid)
+        for sid in board.sids['Other']:
+            board_data = board.to_json()
+            emit('board_update', board_data, room=sid)
+    else:
         board_data = board.to_json()
-        emit('board_update', board_data, room=sid)
+        emit('board_update', board_data, broadcast=True)
 
 
 @app.route('/get_board/<string:uuid>', methods=['GET'])
 def get_board(uuid):
-    return board.to_json(uuid)
+    return board.to_json(uuid=uuid)
 
 
 @app.route('/reset/<string:uuid>/<int:x>', methods=['GET'])

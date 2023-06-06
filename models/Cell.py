@@ -106,6 +106,8 @@ class Cell:
             self.board.lost_white_figures.append(figure)
 
     def can_move(self, target, player_id=None, attack=False, xray=False):
+        if self.board.players_id[Colors.WHITE]['id'] is None or self.board.players_id[Colors.BLACK]['id'] is None:
+            return False
         color_block = Colors.BLACK
         if self.figure and self.figure.color == Colors.BLACK:
             color_block = Colors.WHITE
