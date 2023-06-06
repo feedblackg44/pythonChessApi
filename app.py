@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request
 from flask_cors import CORS
 from flask_socketio import SocketIO, emit
 from models import Board
@@ -14,72 +14,73 @@ board = Board()
 
 @socketio.on('connect')
 def handle_connect():
+    board.join_player(request.args.get('userId'), request.sid)
     print('Client connected')
 
 
 @socketio.on('disconnect')
 def handle_disconnect():
+    board.remove_player(request.sid)
     print('Client disconnected')
 
 
 @socketio.on('board_update')
 def handle_update_board():
-    update_board_data()
-
-
-def update_board_data():
     board.reset_promotion()
-    board_data = board.to_json()
-    emit('board_update', board_data, broadcast=True)
+    black_sid = board.sids['black']
+    board_data_black = board.to_json(black_sid)
+    emit('board_update', board_data_black, room=black_sid)
+    for sid in board.sids['Other']:
+        board_data = board.to_json()
+        emit('board_update', board_data, room=sid)
 
 
-@app.route('/get_board', methods=['GET'])
-def get_board():
-    socketio.emit('update_board')
-    return board.to_json()
+@app.route('/get_board/<string:uuid>', methods=['GET'])
+def get_board(uuid):
+    return board.to_json(uuid)
 
 
-@app.route('/reset/<int:x>', methods=['GET'])
-def reset_board(x):
-    board.reset(int(x))
-    return get_board()
+@app.route('/reset/<string:uuid>/<int:x>', methods=['GET'])
+def reset_board(uuid, x):
+    board.reset(uuid, int(x))
+    return get_board(uuid)
 
 
-@app.route('/highlight_cells/<int:disable>', methods=['POST'])
-def highlight(disable=0):
+@app.route('/highlight_cells/<string:uuid>/<int:disable>', methods=['POST'])
+def highlight(uuid=None, disable=0):
     if disable:
         board.reset_highlighting()
         return [False]
 
     cell1 = request.get_json()[0]
     cell = board.get_cell(cell1['x'], cell1['y'])
-    board.highlight_cells(cell)
+    board.highlight_cells(cell, uuid)
 
     return [True]
 
 
-@app.route('/move_figure', methods=['POST'])
-def move_piece():
+@app.route('/move_figure/<string:uuid>', methods=['POST'])
+def move_piece(uuid=None):
     coords, coords_to = request.get_json()
 
     cell = board.get_cell(coords['x'], coords['y'])
     cell_to = board.get_cell(coords_to['x'], coords_to['y'])
 
-    return [board.move_piece(cell, cell_to)]
+    return [board.move_piece(cell, cell_to, uuid)]
 
 
-@app.route('/can_move', methods=['POST'])
-def can_move():
+@app.route('/can_move/<string:uuid>', methods=['POST'])
+def can_move(uuid=None):
     coords, coords_to = request.get_json()
 
-    return [board.can_move(coords, coords_to)]
+    return [board.can_move(coords, coords_to, uuid)]
 
 
-@app.route('/promote', methods=['POST'])
-def promote():
+@app.route('/promote/<string:uuid>', methods=['POST'])
+def promote(uuid=None):
     new_name = request.get_json()
 
-    return [board.promote(new_name[0])]
+    return [board.promote(uuid, new_name[0])]
 
 
 @app.route('/time_end', methods=['POST'])
@@ -104,7 +105,7 @@ def main(application):
     # Load settings and run app
     with open(filename, "r") as file:
         settings = load(file)
-        socketio.run(app,
+        socketio.run(application,
                      **settings,
                      debug=True,
                      allow_unsafe_werkzeug=True)

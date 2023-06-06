@@ -105,11 +105,13 @@ class Cell:
         else:
             self.board.lost_white_figures.append(figure)
 
-    def can_move(self, target, attack=False, xray=False):
+    def can_move(self, target, player_id=None, attack=False, xray=False):
         color_block = Colors.BLACK
         if self.figure and self.figure.color == Colors.BLACK:
             color_block = Colors.WHITE
-        if self.figure and \
+        if (player_id is None or
+            (self.board.players_id[self.board.active_color]['id'] == player_id)) and \
+                self.figure and \
                 (attack or
                  ((not attack) and
                   self.figure.color == self.board.active_color)) and \
@@ -149,8 +151,9 @@ class Cell:
             return True
         return False
 
-    def move_figure(self, target, name_transform=None):
-        if self.figure and self.can_move(target):
+    def move_figure(self, target, player_id, name_transform=None):
+        if player_id and self.board.players_id[self.board.active_color]['id'] == player_id and \
+                self.figure and self.can_move(target):
             self.figure.move_figure(target)
             takes = False
             special = SpecialMoves.NORMAL

@@ -23,21 +23,47 @@ class Board:
         self.saved_state: GameStates | None = None
         self.king_attackers: list[Figure] = []
 
-        self.reset(600)
+        self.players_id: dict[Colors: dict[str: any]] = {Colors.WHITE: {'id': None, 'sid': None},
+                                                         Colors.BLACK: {'id': None, 'sid': None}}
+        self.sids: dict[str: str | list] = {Colors.BLACK.value: None,
+                                            'Other': []}
+
+        self.reset(None, 600)
 
     # ---- Interaction ---- #
+
+    def join_player(self, player_id, sid):
+        if not self.players_id[Colors.WHITE]['id'] or self.players_id[Colors.WHITE]['id'] == player_id:
+            self.players_id[Colors.WHITE] = {'id': player_id, 'sid': sid}
+            self.sids['Other'].append(sid)
+        elif not self.players_id[Colors.BLACK]['id'] or self.players_id[Colors.BLACK]['id'] == player_id:
+            self.players_id[Colors.BLACK] = {'id': player_id, 'sid': sid}
+            self.sids[Colors.BLACK.value] = sid
+        else:
+            self.sids['Other'].append(sid)
+
+    def remove_player(self, sid):
+        if self.first:
+            if self.players_id[Colors.WHITE]['sid'] == sid:
+                self.players_id[Colors.WHITE] = {'id': None, 'sid': None}
+                self.sids['Other'].pop(self.sids['Other'].index(sid))
+            elif self.players_id[Colors.BLACK]['sid'] == sid:
+                self.players_id[Colors.BLACK] = {'id': None, 'sid': None}
+                self.sids[Colors.BLACK.value] = None
+            else:
+                self.sids['Other'].pop(self.sids['Other'].index(sid))
 
     def get_cell(self, x, y) -> Cell:
         return self.cells[y][x]
 
-    def can_move(self, coords, coords_to):
+    def can_move(self, coords, coords_to, uuid):
         if self.state != GameStates.MATE and self.state != GameStates.TIE:
             cell = self.get_cell(coords['x'], coords['y'])
             cell_to = self.get_cell(coords_to['x'], coords_to['y'])
 
-            if cell.can_move(cell_to):
+            if cell.can_move(cell_to, uuid):
                 return True
-            self.highlight_cells(cell, disable=True)
+            self.highlight_cells(cell)
             return False
         else:
             print("END!")
@@ -186,13 +212,13 @@ class Board:
             for target in row:
                 target.available = False
 
-    def highlight_cells(self, selected_cell: Cell, disable=False):
+    def highlight_cells(self, selected_cell: Cell, uuid=None):
         for row in self.cells:
             for target in row:
-                target.available = bool(selected_cell.figure and selected_cell.can_move(target) and not disable)
+                target.available = bool(uuid and selected_cell.figure and selected_cell.can_move(target, uuid))
 
-    def promote(self, transform):
-        result = self.move_piece(*self.cells_to_promote, transform)
+    def promote(self, uuid, transform):
+        result = self.move_piece(*self.cells_to_promote, uuid, transform)
         self.reset_promotion()
         return result
 
@@ -202,10 +228,10 @@ class Board:
             self.state = self.saved_state
             self.saved_state = None
 
-    def move_piece(self, cell, cell_to, transform=None):
-        if self.state != GameStates.MATE and self.state != GameStates.TIE:
-            self.highlight_cells(cell, disable=True)
-            result = cell.move_figure(cell_to, transform)
+    def move_piece(self, cell, cell_to, uuid, transform=None):
+        if cell and self.state != GameStates.MATE and self.state != GameStates.TIE:
+            self.highlight_cells(cell)
+            result = cell.move_figure(cell_to, uuid, transform)
             if len(result):
                 if result[1] == SpecialMoves.PROMOTE:
                     self.saved_state = self.state
@@ -227,24 +253,26 @@ class Board:
 
     # ---- Initialization ---- #
 
-    def reset(self, time_init):
-        self.size = 8
-        self.cells: list[list[Cell]] = [[Cell(self, j, i, Colors.WHITE if (i + j) % 2 else Colors.BLACK)
-                                        for j in range(self.size)] for i in range(self.size)]
-        self.lost_black_figures: list[Figure] = []
-        self.lost_white_figures: list[Figure] = []
-        self.history: History = History()
-        self.state: GameStates = GameStates.NORMAL
-        self.active_color: Colors = Colors.WHITE
-        self.won: Colors | None = None
-        self.times: list[int] = [time_init, time_init]
-        self.time_start = 0
-        self.first = True
-        self.cells_to_promote: list[Cell | None] = [None, None]
-        self.saved_state: GameStates | None = None
-        self.king_attackers: list[Figure] = []
+    def reset(self, uuid, time_init):
+        if not uuid or (uuid and (self.players_id[Colors.BLACK]['id'] == uuid or
+                                  self.players_id[Colors.WHITE]['id'] == uuid)):
+            self.size = 8
+            self.cells: list[list[Cell]] = [[Cell(self, j, i, Colors.WHITE if (i + j) % 2 else Colors.BLACK)
+                                            for j in range(self.size)] for i in range(self.size)]
+            self.lost_black_figures: list[Figure] = []
+            self.lost_white_figures: list[Figure] = []
+            self.history: History = History()
+            self.state: GameStates = GameStates.NORMAL
+            self.active_color: Colors = Colors.WHITE
+            self.won: Colors | None = None
+            self.times: list[int] = [time_init, time_init]
+            self.time_start = 0
+            self.first = True
+            self.cells_to_promote: list[Cell | None] = [None, None]
+            self.saved_state: GameStates | None = None
+            self.king_attackers: list[Figure] = []
 
-        self.set_figures()
+            self.set_figures()
 
     def set_figures(self):
         self.add_bishops()
@@ -287,11 +315,23 @@ class Board:
 
     # ---- Printing ---- #
 
-    def to_json(self) -> dict:
+    def to_json(self, sid=None) -> dict:
         self.update_time()
-        cells = [[self.get_cell(i, j).to_json()]
-                 for j in range(self.size - 1, -1, -1)
-                 for i in range(self.size)]
+
+        color = Colors.BLACK \
+            if self.players_id[Colors.BLACK]['sid'] == sid or \
+            self.players_id[Colors.BLACK]['id'] == sid \
+            else Colors.WHITE
+
+        if color == Colors.BLACK:
+            cells = [[self.get_cell(i, j).to_json()]
+                     for j in range(self.size)
+                     for i in range(self.size - 1, -1, -1)]
+        else:
+            cells = [[self.get_cell(i, j).to_json()]
+                     for j in range(self.size - 1, -1, -1)
+                     for i in range(self.size)]
+
         return {"cells": cells,
                 "lost_white": [figure.to_json() for figure in self.lost_white_figures],
                 "lost_black": [figure.to_json() for figure in self.lost_black_figures],
